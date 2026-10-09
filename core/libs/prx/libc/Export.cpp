@@ -25,29 +25,6 @@ int APS5_VABI _ZSt14_Atomic_assertPKcS0__nid_postfix() {
  return 0;
 }
 
-// Live Cyberpunk 2077 import used in an fopen/fseek/ftell-like file-size
-// idiom as (handle, 0, 2); returning 0 reports success.
-APS5_EXPORT("rWSuTWY2JN0", libcCyberUnknown18);
-int APS5_VABI libcCyberUnknown18(void) {
- NotImplemented_nid_no_patch("rWSuTWY2JN0");
- return 0;
-}
-
-// Live Cyberpunk 2077 import used as (handle, 0, 0) in the same file-size
-// idiom; returning 0 reports success.
-APS5_EXPORT("tfNbpqL3D0M", libcCyberUnknown19);
-int APS5_VABI libcCyberUnknown19(void) {
- NotImplemented_nid_no_patch("tfNbpqL3D0M");
- return 0;
-}
-
-
-APS5_EXPORT("Ye20uNnlglA", libcCyberUnknown02);
-std::uint64_t APS5_VABI libcCyberUnknown02(void) {
-    NotImplemented_nid_no_patch("Ye20uNnlglA");
-    return 0;
-}
-
 APS5_EXPORT("5Lf51jvohTQ", libcCyberUnknown03);
 std::uint64_t APS5_VABI libcCyberUnknown03(void) {
     NotImplemented_nid_no_patch("5Lf51jvohTQ");
@@ -63,12 +40,6 @@ std::uint64_t APS5_VABI libcCyberUnknown05(void) {
 APS5_EXPORT("CyXs2l-1kNA", libcCyberUnknown07);
 std::uint64_t APS5_VABI libcCyberUnknown07(void) {
     NotImplemented_nid_no_patch("CyXs2l-1kNA");
-    return 0;
-}
-
-APS5_EXPORT("H+8UBOwfScI", libcCyberUnknown08);
-std::uint64_t APS5_VABI libcCyberUnknown08(void) {
-    NotImplemented_nid_no_patch("H+8UBOwfScI");
     return 0;
 }
 

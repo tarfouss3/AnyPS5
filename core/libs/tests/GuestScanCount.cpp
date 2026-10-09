@@ -1,4 +1,5 @@
 #include "prx/libc/include/general/VabiMacros.hpp"
+#include "SceTypes.hpp"
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -7,6 +8,7 @@
 #include <string>
 
 extern "C" int APS5_VABI sscanf_s_nid_postfix(const char*, const char*, ...);
+extern "C" int APS5_VABI vsscanf_s_nid_postfix(const char*, const char*, VaList*);
 
 static int failures = 0;
 
@@ -35,7 +37,47 @@ template<class TValue> static void CheckCount(const char* modifier, int count) {
     }
 }
 
+static int APS5_VABI ScanList(const char* input, const char* format, ...) {
+    __builtin_sysv_va_list args;
+    __builtin_sysv_va_start(args, format);
+    VaList list;
+    std::memcpy(&list, args, sizeof(list));
+    const VaList original = list;
+    const int result = vsscanf_s_nid_postfix(input, format, &list);
+    Require(std::memcmp(&list, &original, sizeof(list)) == 0, "vsscanf_s must not advance the caller's argument list");
+    __builtin_sysv_va_end(args);
+    return result;
+}
+
+static void CheckArgumentList() {
+    int number = -1;
+    long long wide = -1;
+    double real = 0.0;
+    char word[4] = {};
+    char letters[3] = {'?', '?', '?'};
+    std::int64_t count = -1;
+    Require(ScanList(" 12 abc 7 2.5 xy!", "%d %3s %lld %lf %2c%jn!", &number, word, 4u, &wide, &real, letters, 2u, &count) == 5,
+        "vsscanf_s must assign every converted item");
+    Require(number == 12 && std::strcmp(word, "abc") == 0 && wide == 7 && real == 2.5 && letters[0] == 'x' && letters[1] == 'y'
+        && letters[2] == '?' && count == 16, "vsscanf_s must store converted values and counts");
+    std::memcpy(word, "zzz", 4);
+    Require(ScanList("abcd", "%s", word, 4u) == 0 && word[0] == 0, "vsscanf_s must reject a string longer than its buffer");
+    Require(ScanList("ab", "%3c", word, 2u) == 0, "vsscanf_s must reject a character run longer than its buffer");
+    std::memcpy(word, "zzz", 4);
+    Require(ScanList("abc", "%s", word, 0u) == 0 && std::strcmp(word, "zzz") == 0, "vsscanf_s must not write a zero-sized buffer");
+    Require(ScanList(nullptr, "%d", &number) == EOF, "vsscanf_s must reject a null input");
+    Require(ScanList("1", nullptr) == EOF, "vsscanf_s must reject a null format");
+    number = -1;
+    Require(ScanList("1 2", "%d %d", &number, static_cast<int*>(nullptr)) == EOF && number == 1,
+        "vsscanf_s must stop at a null destination");
+    Require(ScanList("ab", "ab%n", static_cast<int*>(nullptr)) == EOF, "vsscanf_s must reject a null count destination");
+    Require(ScanList("x", "%d", &number) == 0, "vsscanf_s matching failure");
+    Require(ScanList("", "%d", &number) == EOF, "vsscanf_s input failure");
+    Require(sscanf_s_nid_postfix("5", "%d", static_cast<int*>(nullptr)) == EOF, "sscanf_s must reject a null destination");
+}
+
 int main() {
+    CheckArgumentList();
     for (const int count : {0, 3, 127}) {
         CheckCount<signed char>("hh", count);
         CheckCount<short>("h", count);

@@ -44,6 +44,8 @@ int APS5_VABI __isnormal_nid_postfix(double);
 int APS5_VABI __isnormalf_nid_postfix(float);
 int APS5_VABI __isinff_nid_postfix(float);
 std::lldiv_t APS5_VABI lldiv_nid_postfix(long long, long long);
+int APS5_VABI abs_nid_postfix(int);
+double APS5_VABI __powidf2_nid_postfix(double, int);
 }
 static void Require(bool value) { if (!value) std::abort(); }
 
@@ -160,7 +162,35 @@ static void CheckFloatClassification() {
     Require(_FDtest_nid_postfix(reinterpret_cast<const float*>(&_FNan_nid_postfix)) == 2);
 }
 
+static void CheckIntegerPowers() {
+    Require(abs_nid_postfix(-5) == 5 && abs_nid_postfix(7) == 7 && abs_nid_postfix(0) == 0);
+    Require(abs_nid_postfix(std::numeric_limits<int>::max()) == std::numeric_limits<int>::max());
+    Require(abs_nid_postfix(-std::numeric_limits<int>::max()) == std::numeric_limits<int>::max());
+    Require(abs_nid_postfix(std::numeric_limits<int>::min()) == std::numeric_limits<int>::min());
+    const double infinity = std::numeric_limits<double>::infinity();
+    Require(__powidf2_nid_postfix(2.0, 10) == 1024.0);
+    Require(__powidf2_nid_postfix(2.0, -2) == 0.25);
+    Require(__powidf2_nid_postfix(-3.0, 3) == -27.0 && __powidf2_nid_postfix(-3.0, 2) == 9.0);
+    Require(__powidf2_nid_postfix(std::numeric_limits<double>::quiet_NaN(), 0) == 1.0);
+    Require(__powidf2_nid_postfix(infinity, 0) == 1.0);
+    Require(__powidf2_nid_postfix(0.0, -1) == infinity && __powidf2_nid_postfix(-0.0, -1) == -infinity);
+    Require(__powidf2_nid_postfix(-0.0, -2) == infinity);
+    Require(__powidf2_nid_postfix(2.0, std::numeric_limits<int>::min()) == 0.0);
+    Require(__powidf2_nid_postfix(0.5, std::numeric_limits<int>::min()) == infinity);
+    Require(__powidf2_nid_postfix(2.0, 1023) == std::ldexp(1.0, 1023) && __powidf2_nid_postfix(2.0, 1024) == infinity);
+    Require(std::isnan(__powidf2_nid_postfix(std::numeric_limits<double>::quiet_NaN(), 3)));
+    for (const double base : {1.1, -0.7, 3.3}) {
+        const double square = base * base;
+        const double fourth = square * square;
+        const double seventh = (base * square) * fourth;
+        Require(__powidf2_nid_postfix(base, 7) == seventh);
+        Require(__powidf2_nid_postfix(base, -7) == 1.0 / seventh);
+        Require(__powidf2_nid_postfix(base, 6) == square * fourth);
+    }
+}
+
 int main() {
+    CheckIntegerPowers();
     CheckFloatClassification();
     CheckIntegerConversions();
     Require(atof_nid_postfix(" -12.5tail") == -12.5);

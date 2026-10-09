@@ -121,7 +121,12 @@ inline void AppendUtf8(std::string& utf8, char32_t code) {
     }
 }
 
-inline int FormatWindows(char* buffer, size_t size, const char* format, const void* source, std::string* complete = nullptr) {
+class RuntimeConstraintViolation : public std::invalid_argument {
+public:
+    using std::invalid_argument::invalid_argument;
+};
+
+inline int FormatWindows(char* buffer, size_t size, const char* format, const void* source, std::string* complete = nullptr, bool secure = false) {
     if (!format || !source) throw std::invalid_argument("Null formatting argument");
     const char* const formatStart = format;
     FormatArguments args(source);
@@ -175,6 +180,7 @@ inline int FormatWindows(char* buffer, size_t size, const char* format, const vo
         }
         const char conversion = *format;
         if (!conversion) throw std::invalid_argument("Incomplete format conversion");
+        if (secure && conversion == 'n') throw RuntimeConstraintViolation("Format count in a bounds-checked format");
         ++format;
         const bool integerLength = length.empty() || length == "h" || length == "hh" ||
             length == "l" || length == "ll" || length == "j" || length == "z" || length == "t";
@@ -213,10 +219,12 @@ inline int FormatWindows(char* buffer, size_t size, const char* format, const vo
             output.Value(spec + 's', utf8.c_str());
         } else if (conversion == 's' && (length.empty() || length == "h")) {
             const char* value = args.Next<const char*>();
+            if (!value && secure) throw RuntimeConstraintViolation("Null string argument");
             if (!value) value = "(null)";
             output.Value(spec + 's', value);
         } else if ((conversion == 's' && length == "l") || (conversion == 'S' && length.empty())) {
             const char16_t* value = args.Next<const char16_t*>();
+            if (!value && secure) throw RuntimeConstraintViolation("Null string argument");
             if (!value) value = u"(null)";
             std::string utf8;
             while (utf8.size() < precisionLimit && *value) {
