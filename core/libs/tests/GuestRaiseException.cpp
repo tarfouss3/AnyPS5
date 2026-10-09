@@ -91,7 +91,11 @@ static void* APS5_VABI HostBlocked(void* arg) {
     return nullptr;
 }
 
+#ifdef _WIN32
 static constexpr int LeavingRounds = 200;
+#else
+static constexpr int LeavingRounds = 20;
+#endif
 static std::atomic<int> leavingRound{0};
 
 static void* APS5_VABI Leaving(void* arg) {

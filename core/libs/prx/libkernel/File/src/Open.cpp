@@ -5,9 +5,11 @@
 #include "prx/libkernel/File/include/File.hpp"
 #include "prx/libkernel/File/include/DirectoryDescriptor.hpp"
 #include "prx/libkernel/KernelErrors.hpp"
+#include "prx/libkernel/Socket/include/SocketRuntime.hpp"
 #include "SceTypes.hpp"
 
 #include <cerrno>
+#include <cstdarg>
 #include <limits>
 #include <stdexcept>
 #include <string>
@@ -195,9 +197,36 @@ int APS5_VABI sceKernelUnlink(const char* path) {
     return 0;
 }
 
-int APS5_VABI sceKernelFcntl() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI fcntl_nid_postfix(int descriptor, int command, ...);
+int* APS5_VABI __error_nid_postfix();
+
+int APS5_VABI sceKernelFcntl(int d, int cmd, ...) {
+    constexpr int GetFlags = 3;
+    constexpr int SetFlags = 4;
+    if (cmd != GetFlags && cmd != SetFlags) {
+        throw std::runtime_error(std::string(__func__) + ": command " + std::to_string(cmd) + " is not modelled");
+    }
+    if (d < 0) return SCE_KERNEL_ERROR_EBADF;
+    if (d < GuestSockets::FirstDescriptor) {
+        throw std::runtime_error(std::string(__func__) + ": descriptor " + std::to_string(d) + " is not a socket");
+    }
+    int flags = 0;
+    if (cmd == SetFlags) {
+#ifdef _WIN32
+        __builtin_sysv_va_list arguments;
+        __builtin_sysv_va_start(arguments, cmd);
+        flags = __builtin_va_arg(arguments, int);
+        __builtin_sysv_va_end(arguments);
+#else
+        std::va_list arguments;
+        va_start(arguments, cmd);
+        flags = va_arg(arguments, int);
+        va_end(arguments);
+#endif
+    }
+    const int result = fcntl_nid_postfix(d, cmd, flags);
+    if (result == -1) return static_cast<int>(0x80020000u | static_cast<unsigned>(*__error_nid_postfix()));
+    return result;
 }
 
 }

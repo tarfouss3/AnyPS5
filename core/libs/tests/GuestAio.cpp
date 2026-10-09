@@ -30,6 +30,7 @@ int APS5_VABI sceKernelAioWaitRequests(std::int32_t* id, std::int32_t num, std::
 int APS5_VABI sceKernelAioCancelRequest(std::int32_t id, std::int32_t* state);
 int APS5_VABI sceKernelAioCancelRequests(std::int32_t* id, std::int32_t num, std::int32_t* state);
 int APS5_VABI sceKernelAioDeleteRequests(std::int32_t* id, std::int32_t num, std::int32_t* ret);
+int APS5_VABI sceKernelAioPollRequests(std::int32_t* id, std::int32_t num, std::int32_t* state);
 }
 static void Require(bool value, int line) {
     if (!value) {
@@ -145,6 +146,11 @@ int main() {
     Check(cancelStates[0] == 2 && cancelStates[1] == 4);
     Check(sceKernelAioPollRequest(readIds[1], &polled) == 0);
     Check(polled == 4);
+    std::int32_t pollIds[3] = {writeIds[0], writeIds[1], readIds[0]};
+    std::int32_t pollStates[3] = {0, 0, 0};
+    Check(sceKernelAioPollRequests(pollIds, 3, pollStates) == 0);
+    Check(pollStates[0] == 3 && pollStates[1] == 4 && pollStates[2] == 4);
+    Check(sceKernelAioPollRequests(pollIds, 0, pollStates) == 0);
     std::int32_t deletedRets[2] = {-1, -1};
     Check(sceKernelAioDeleteRequests(writeIds, 2, deletedRets) == 0);
     Check(deletedRets[0] == 0 && deletedRets[1] == 0);
@@ -181,6 +187,14 @@ int main() {
     Check(sceKernelAioDeleteRequests(badIds, 2, untouched) == SCE_KERNEL_ERROR_EINVAL);
     Check(untouched[0] == 7 && untouched[1] == 7);
     Check(sceKernelAioDeleteRequests(writeIds, 2, nullptr) == SCE_KERNEL_ERROR_EFAULT);
+    Check(sceKernelAioPollRequests(nullptr, 2, untouched) == SCE_KERNEL_ERROR_EFAULT);
+    Check(sceKernelAioPollRequests(readIds, 2, nullptr) == SCE_KERNEL_ERROR_EFAULT);
+    Check(sceKernelAioPollRequests(readIds, -1, untouched) == SCE_KERNEL_ERROR_EINVAL);
+    Check(sceKernelAioPollRequests(badIds, 2, untouched) == SCE_KERNEL_ERROR_EINVAL);
+    Check(untouched[0] == 7 && untouched[1] == 7);
+    threw = false;
+    try { sceKernelAioPollRequests(manyIds.data(), 129, manyStates.data()); } catch (const std::runtime_error&) { threw = true; }
+    Check(threw);
     const auto shared = root / "shared.bin";
     std::string sharedContents;
     for (char letter : {'A', 'B', 'C', 'D'}) sharedContents.append(1024, letter);
