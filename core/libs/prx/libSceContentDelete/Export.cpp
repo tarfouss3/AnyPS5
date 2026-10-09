@@ -7,6 +7,7 @@
 #include <string>
 
 namespace {
+constexpr int CONTENT_DELETE_ERROR_FILE_NOT_FOUND = static_cast<int>(0x809D5005);
 std::atomic<bool> g_initialized{false};
 }
 
@@ -19,9 +20,10 @@ int APS5_VABI sceContentDeleteInitialize(const ContentDeleteInitParam* init_para
     return 0;
 }
 
-int APS5_VABI sceContentDeleteByPath(void) {
- NotImplemented_nid_no_patch(__func__);
- return 0;
+int APS5_VABI sceContentDeleteByPath(const char* content_path) {
+    if (!g_initialized.load()) throw std::logic_error(std::string(__func__) + ": not initialized");
+    if (content_path == nullptr) APS5_INVALID_ARG_EX;
+    return CONTENT_DELETE_ERROR_FILE_NOT_FOUND;
 }
 
 int APS5_VABI sceContentDeleteTerminate(void) {

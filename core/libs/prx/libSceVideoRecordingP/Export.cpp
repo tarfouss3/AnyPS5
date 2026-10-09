@@ -10,6 +10,7 @@
 #include <vector>
 
 namespace {
+constexpr int32_t VIDEO_RECORDING_STATUS_NONE = 0;
 std::mutex g_infoMutex;
 std::map<int32_t, std::vector<unsigned char>> g_info;
 }
@@ -33,8 +34,7 @@ int APS5_VABI sceVideoRecordingGetInfo(int32_t info, void* data, size_t size) {
 }
 
 int APS5_VABI sceVideoRecordingGetStatus(void) {
- NotImplemented_nid_no_patch(__func__);
- return 0;
+    return VIDEO_RECORDING_STATUS_NONE;
 }
 
 int APS5_VABI sceVideoRecordingOpen(const char* path, const void* param, void* heap, int heapSize) {

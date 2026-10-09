@@ -1,0 +1,15 @@
+add_library(libSceContentDelete SHARED EXCLUDE_FROM_ALL Export.cpp)
+target_include_directories(libSceContentDelete PRIVATE ${LIBS_INCLUDE_DIR})
+configure_windows_unwind(libSceContentDelete)
+
+if(BUILD_TESTING)
+    add_test_executable(guest_content_delete_tests ${LIBS_INCLUDE_DIR}/tests/GuestContentDelete.cpp)
+    target_include_directories(guest_content_delete_tests PRIVATE ${LIBS_INCLUDE_DIR})
+    target_link_libraries(guest_content_delete_tests PRIVATE libSceContentDelete libc)
+    configure_windows_unwind(guest_content_delete_tests)
+    add_test(NAME guest_content_delete COMMAND guest_content_delete_tests)
+    if(WIN32)
+        set_tests_properties(guest_content_delete PROPERTIES ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:libc>")
+    endif()
+endif()
