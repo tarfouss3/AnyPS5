@@ -1,6 +1,8 @@
 #include <cstdint>
 #include <cstddef>
 #include <mutex>
+#include <stdexcept>
+#include <string>
 #include "SceTypes.hpp"
 #include "prx/libc/include/General.hpp"
 
@@ -28,8 +30,10 @@ int APS5_VABI sceVoiceQoSInit(void* mem_block, uint32_t mem_size, int32_t app_ty
 }
 
 int APS5_VABI sceVoiceQoSEnd() {
- NotImplemented_nid_no_patch(__func__);
- return 0;
+    std::lock_guard lock(g_mutex);
+    if (!g_initialized) throw std::runtime_error(std::string(__func__) + ": library not initialized");
+    g_initialized = false;
+    return 0;
 }
 
 int APS5_VABI sceVoiceQoSCreateLocalEndpoint() {
