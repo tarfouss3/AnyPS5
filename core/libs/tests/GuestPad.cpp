@@ -4,6 +4,7 @@
 #include "prx/libc/include/general/VabiMacros.hpp"
 #include <chrono>
 #include <cstdlib>
+#include <stdexcept>
 #include <thread>
 
 extern "C" {
@@ -15,14 +16,26 @@ int APS5_VABI scePadSetVibrationTriggerEffectWeakWhileEmbeddedMicInUse(bool);
 int APS5_VABI scePadSetVibrationMode(int, int);
 int APS5_VABI scePadInit_nid_postfix(void);
 int APS5_VABI scePadRead_nid_postfix(int, PadData*, int);
+int APS5_VABI scePadReadExt(int, PadData*, int);
 int APS5_VABI scePadReadState(int, PadData*);
 int APS5_VABI scePadSetTiltCorrectionState(int, bool);
 int APS5_VABI scePadResetOrientation(int);
 int APS5_VABI scePadSetAngularVelocityDeadbandState(int, bool);
 int APS5_VABI scePadIsRemoteController(int, bool*);
+int APS5_VABI scePadSetAngularVelocityBiasCorrectionState(int, bool);
 }
 
 static void Require(bool value) { if (!value) std::abort(); }
+
+template <typename TCall>
+static bool Throws(TCall call) {
+    try {
+        call();
+    } catch (const std::runtime_error&) {
+        return true;
+    }
+    return false;
+}
 
 static float SettleOrientationW() {
     float w = 1.0f;
@@ -70,6 +83,43 @@ static void CheckReadStateHandle(int handle) {
     Require(scePadReadState(handle, &data) == PAD_OK);
 }
 
+static void CheckReadExt(int handle) {
+    PadInputState pressed;
+    pressed.buttons = static_cast<std::uint32_t>(Pad::PadButton::Cross);
+    PadPublishInput_nid_postfix(pressed);
+    PadData data{};
+    Require(scePadReadExt(handle + 1, &data, 1) == PAD_ERROR_INVALID_HANDLE);
+    Require(data.buttons == 0);
+    Require(scePadReadExt(handle, &data, 1) == 1);
+    Require(data.connected);
+    Require(data.buttons == static_cast<std::uint32_t>(Pad::PadButton::Cross));
+    PadPublishInput_nid_postfix(PadInputState{});
+}
+
+static void CheckAngularVelocityStates(int handle) {
+    Require(scePadSetAngularVelocityDeadbandState(handle, false) == PAD_OK);
+    Require(Throws([&] { scePadSetAngularVelocityDeadbandState(handle, true); }));
+    Require(scePadSetAngularVelocityBiasCorrectionState(handle + 1, true) == PAD_ERROR_INVALID_HANDLE);
+    Require(scePadSetAngularVelocityBiasCorrectionState(handle, true) == PAD_OK);
+    Require(Throws([&] { scePadSetAngularVelocityBiasCorrectionState(handle, false); }));
+}
+
+static void CheckOpenExtStandardPorts(int user, const unsigned char* param) {
+    constexpr int noHandle = static_cast<int>(0x80920008);
+    Require(scePadOpenExt(user, PAD_PORT_TYPE_STANDARD, 0, nullptr) == PAD_ERROR_INVALID_ARG);
+    Require(scePadOpenExt(user, PAD_PORT_TYPE_REMOTE, 0, param) == PAD_ERROR_INVALID_ARG);
+    Require(scePadGetHandle(user, 0, 0) == noHandle);
+    const int handle = scePadOpenExt(user, PAD_PORT_TYPE_STANDARD, 0, param);
+    Require(handle > 0);
+    Require(scePadGetHandle(user, 0, 0) == handle);
+    Require(scePadClose_nid_postfix(handle) == 0);
+    Require(scePadGetHandle(user, 0, 0) == noHandle);
+    const int remote = scePadOpenExt(PAD_USER_ID_SYSTEM, PAD_PORT_TYPE_REMOTE, 0, param);
+    Require(remote > 0);
+    Require(scePadGetHandle(PAD_USER_ID_SYSTEM, PAD_PORT_TYPE_REMOTE, 0) == remote);
+    Require(scePadClose_nid_postfix(remote) == 0);
+}
+
 static void CheckRemoteController(int handle) {
     bool remote = true;
     Require(scePadIsRemoteController(handle + 1, &remote) == PAD_ERROR_INVALID_HANDLE);
@@ -100,6 +150,8 @@ int main() {
     CheckTouchContact();
     CheckReadStateHandle(handle);
     CheckRemoteController(handle);
+    CheckReadExt(handle);
+    CheckAngularVelocityStates(handle);
     Require(scePadSetVibrationMode(handle, 1) == 0);
     Require(scePadSetVibrationMode(handle, 2) == 0);
     Require(scePadSetVibrationMode(handle, 3) == PAD_ERROR_INVALID_ARG);
@@ -112,4 +164,6 @@ int main() {
     Require(scePadSetVibrationTriggerEffectWeakWhileEmbeddedMicInUse(true) == 0);
     Require(scePadSetAngularVelocityDeadbandState(handle, false) == 0);
     Require(scePadSetAngularVelocityDeadbandState(handle + 1, false) == PAD_ERROR_INVALID_HANDLE);
+    const unsigned char standardParam[16]{};
+    CheckOpenExtStandardPorts(user, standardParam);
 }
