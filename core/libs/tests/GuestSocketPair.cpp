@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <stdexcept>
 
 struct PollDescriptor {
     int descriptor;
@@ -22,6 +23,7 @@ int APS5_VABI fcntl_nid_postfix(int, int, ...);
 int APS5_VABI poll_nid_postfix(PollDescriptor*, std::uint32_t, int);
 int APS5_VABI close_nid_postfix(int);
 int* APS5_VABI __error_nid_postfix();
+int APS5_VABI sceKernelFcntl(int, int, ...);
 }
 
 static void Require(bool value) { if (!value) std::abort(); }
@@ -58,6 +60,37 @@ static bool Exchange(int from, int to, const char* text) {
     if (!Readable(to)) return false;
     if (recv_nid_postfix(to, received, sizeof(received), 0) != static_cast<std::int64_t>(length)) return false;
     return std::strcmp(received, text) == 0;
+}
+
+static bool KernelFcntlThrows(int descriptor, int command) {
+    try {
+        sceKernelFcntl(descriptor, command);
+    } catch (const std::runtime_error&) {
+        return true;
+    }
+    return false;
+}
+
+static void CheckKernelFcntl() {
+    int pair[2] = {-1, -1};
+    Require(socketpair_nid_postfix(Unix, Stream, 0, pair) == 0);
+    Require(sceKernelFcntl(pair[0], 3) == 2);
+    Require(sceKernelFcntl(pair[0], 4, 4) == 0);
+    Require(sceKernelFcntl(pair[0], 3) == 6);
+    Require(fcntl_nid_postfix(pair[0], 3) == 6);
+    char received[8]{};
+    Require(recv_nid_postfix(pair[0], received, sizeof(received), 0) == -1 && *__error_nid_postfix() == 35);
+    Require(sceKernelFcntl(pair[0], 4, 2) == 0);
+    Require(sceKernelFcntl(pair[0], 3) == 2);
+    Require(sceKernelFcntl(pair[0], 4, 8) == static_cast<int>(0x8002002d));
+    Require(sceKernelFcntl(pair[0], 3) == 2);
+    Require(sceKernelFcntl(-1, 3) == static_cast<int>(0x80020009));
+    Require(KernelFcntlThrows(pair[0], 1));
+    Require(KernelFcntlThrows(pair[0], 2));
+    Require(KernelFcntlThrows(0, 3));
+    Require(close_nid_postfix(pair[0]) == 0 && close_nid_postfix(pair[1]) == 0);
+    Require(sceKernelFcntl(pair[0], 3) == static_cast<int>(0x80020009));
+    Require(sceKernelFcntl(pair[1], 4, 4) == static_cast<int>(0x80020009));
 }
 
 static bool Unnamed(int descriptor, int (APS5_VABI *query)(int, void*, std::uint32_t*)) {
@@ -147,5 +180,6 @@ int main() {
     Require(Fails(Unix, Stream, 6, 43));
     *__error_nid_postfix() = 0;
     Require(socketpair_nid_postfix(Unix, Stream, 0, nullptr) == -1 && *__error_nid_postfix() == 14);
+    CheckKernelFcntl();
     return 0;
 }

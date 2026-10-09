@@ -19,6 +19,10 @@
 #include <link.h>
 #endif
 
+#ifndef _WIN32
+extern "C" void* __tls_get_addr(void* entry);
+#endif
+
 namespace {
 
 std::mutex rtldHeapMutex;
@@ -144,6 +148,18 @@ void APS5_VABI _sceKernelSetThreadAtexitReport_nid_postfix(thread_atexit_report_
 
 void APS5_VABI _sceKernelSetThreadDtors_nid_postfix(thread_dtors_func_t callback) {
     ThreadLifecycle::SetThreadDtors(callback);
+}
+
+void* APS5_VABI __tls_get_addr_nid_postfix(void* entry) {
+    if (entry == nullptr) throw std::runtime_error("__tls_get_addr: null tls_index");
+#ifdef _WIN32
+    const auto* index = static_cast<const std::uint64_t*>(entry);
+    const auto slot = *reinterpret_cast<const std::uint32_t*>(static_cast<std::uintptr_t>(index[0]));
+    auto* const* blocks = *reinterpret_cast<std::uint8_t* const* const*>(reinterpret_cast<const std::uint8_t*>(NtCurrentTeb()) + 0x58);
+    return blocks[slot] + index[1];
+#else
+    return __tls_get_addr(entry);
+#endif
 }
 
 }
