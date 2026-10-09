@@ -28,6 +28,13 @@ uint32_t APS5_VABI sceAgcDcbAcquireMemGetSize(void) {
     return 32;
 }
 
+int APS5_VABI sceAgcAcquireMemSetEngine(std::uint32_t* cmd, std::uint8_t engine) {
+    Agc::Command::ValidatePacket(cmd, 0x58u, 8, __func__);
+    Agc::Command::CheckBits(engine, 1, __func__);
+    cmd[1] = (cmd[1] & 0x7fffffffu) | (static_cast<std::uint32_t>(engine) << 31u);
+    return 0;
+}
+
 uint32_t* APS5_VABI sceAgcDcbCopyData(CommandBuffer* buf, uint8_t dst, uint8_t dst_cache_policy, uint64_t dst_address, uint8_t src, uint8_t src_cache_policy, uint64_t src_address_or_immediate, uint8_t item_size, uint8_t write_confirm) {
     return Agc::Command::WriteCopyData(buf, false, dst, dst_cache_policy, dst_address, src, src_cache_policy, src_address_or_immediate, item_size, write_confirm, __func__);
 }
@@ -53,7 +60,7 @@ std::uint32_t APS5_VABI sceAgcDcbAtomicMemGetSize() {
 }
 
 std::uint32_t APS5_VABI sceAgcDcbAtomicGdsGetSize() {
-    return 36;
+    return 44;
 }
 
 std::uint32_t* APS5_VABI sceAgcDcbWriteData(CommandBuffer* buf, std::uint8_t dst, std::uint8_t cachePolicy, std::uint64_t address, const void* data, std::uint32_t numDwords, std::uint8_t increment, std::uint8_t writeConfirm) {

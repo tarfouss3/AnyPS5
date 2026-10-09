@@ -12,11 +12,9 @@
 
 extern "C" {
 
-// unknown signature
 APS5_EXPORT("zARR5aCmkoY", sceAgcDcbA_zARR5aCmkoY);
-void* APS5_VABI sceAgcDcbA_zARR5aCmkoY(void) {
- NotImplemented_nid_no_patch(__func__);
- return nullptr;
+std::uint32_t* APS5_VABI sceAgcDcbA_zARR5aCmkoY(CommandBuffer* buf, std::uint32_t engine, std::uint32_t operation, std::uint32_t completion, std::uint32_t dataMode, std::uint32_t autoIncrementBytes, std::uint16_t base, std::uint16_t size, std::uint32_t offsets, std::uint32_t destination, std::uint64_t source0, std::uint64_t source1) {
+    return Agc::Command::WriteAtomicGds(buf, engine, operation, completion, dataMode, autoIncrementBytes, base, size, offsets, destination, source0, source1, __func__);
 }
 
 

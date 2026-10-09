@@ -9,6 +9,7 @@
 #include <stdexcept>
 #include <cstring>
 #include <string>
+#include <vector>
 
 extern "C" std::uint32_t* APS5_VABI sceAgcDcbResetQueue(CommandBuffer* buf, std::uint32_t op, std::uint32_t state);
 extern "C" std::uint32_t* APS5_VABI sceAgcDcbClearState(CommandBuffer* buf, std::uint32_t command);
@@ -34,6 +35,25 @@ extern "C" std::uint32_t* APS5_VABI sceAgcAcbPushMarker(CommandBuffer* buf, cons
 extern "C" std::uint32_t* APS5_VABI sceAgcAcbPopMarker(CommandBuffer* buf);
 extern "C" std::uint32_t* APS5_VABI sceAgcAcbSetMarker(CommandBuffer* buf, const char* str, std::uint32_t color);
 extern "C" std::uint32_t* APS5_VABI sceAgcDcbSetIndexBuffer(CommandBuffer* buf, std::uint64_t indexAddress);
+extern "C" std::uint32_t* APS5_VABI sceAgcDcbSetIndexIndirectArgs(CommandBuffer* buf, const volatile void* args, std::uint32_t data);
+extern "C" std::uint32_t APS5_VABI sceAgcDcbSetIndexIndirectArgsGetSize();
+extern "C" std::uint32_t APS5_VABI sceAgcDcbBeginOcclusionQueryGetSize(std::uint32_t queryType);
+extern "C" std::uint32_t APS5_VABI sceAgcDcbEndOcclusionQueryGetSize();
+extern "C" std::uint32_t* APS5_VABI sceAgcDcbAcquireMem(CommandBuffer* buf, std::uint8_t engine, std::uint32_t cbDbOp, std::uint32_t gcrControl, const volatile void* base, std::uint64_t sizeBytes, std::uint32_t pollCycles);
+extern "C" std::uint32_t* APS5_VABI sceAgcAcbAcquireMem(CommandBuffer* buf, std::uint32_t gcrControl, const volatile void* base, std::uint64_t sizeBytes, std::uint32_t pollCycles);
+extern "C" int APS5_VABI sceAgcAcquireMemSetEngine(std::uint32_t* cmd, std::uint8_t engine);
+extern "C" std::uint32_t* APS5_VABI sceAgcDcbPushMarkerSpan(CommandBuffer* buf, const char* str, std::uint32_t length, std::uint32_t color);
+extern "C" std::uint32_t* APS5_VABI sceAgcDcbSetMarkerSpan(CommandBuffer* buf, const char* str, std::uint32_t length, std::uint32_t color);
+extern "C" std::uint32_t* APS5_VABI sceAgcAcbPushMarkerSpan(CommandBuffer* buf, const char* str, std::uint32_t length, std::uint32_t color);
+extern "C" std::uint32_t* APS5_VABI sceAgcAcbSetMarkerSpan(CommandBuffer* buf, const char* str, std::uint32_t length, std::uint32_t color);
+extern "C" std::uint32_t* APS5_VABI sceAgcDcbA_zARR5aCmkoY(CommandBuffer* buf, std::uint32_t engine, std::uint32_t operation, std::uint32_t completion, std::uint32_t dataMode, std::uint32_t autoIncrementBytes, std::uint16_t base, std::uint16_t size, std::uint32_t offsets, std::uint32_t destination, std::uint64_t source0, std::uint64_t source1);
+extern "C" std::uint32_t* APS5_VABI sceAgcAcbAtomicGds_0900(CommandBuffer* buf, std::uint32_t operation, std::uint32_t completion, std::uint32_t dataMode, std::uint32_t autoIncrementBytes, std::uint16_t base, std::uint16_t size, std::uint32_t offsets, std::uint32_t destination, std::uint64_t source0, std::uint64_t source1);
+extern "C" std::uint32_t APS5_VABI sceAgcDcbAtomicGdsGetSize();
+extern "C" std::uint32_t APS5_VABI sceAgcAcbAtomicGdsGetSize();
+extern "C" int APS5_VABI sceAgcSetShaderInstrumentation(std::uint32_t flags);
+extern "C" std::uint32_t APS5_VABI sceAgcGetShaderInstrumentation();
+extern "C" int APS5_VABI sceAgcSetAmmSemaphoreMemory(void* memory, std::uint64_t sizeInBytes);
+extern "C" int APS5_VABI sceAgcGetSemaphoreLabel(std::uint32_t index, void** label);
 
 namespace {
 
@@ -203,6 +223,144 @@ void testIndexBuffer() {
         return;
     }
     throw std::runtime_error("misaligned index buffer was accepted");
+}
+
+void testIndexIndirectArgs() {
+    Storage storage;
+    storage.words.fill(0xdeadbeefu);
+    alignas(16) std::array<std::uint32_t, 8> args{};
+    const auto address = reinterpret_cast<std::uintptr_t>(args.data());
+    const auto* packet = sceAgcDcbSetIndexIndirectArgs(&storage.buffer, args.data(), 0x2222u);
+    const std::array<std::uint32_t, 4> expected{0xc0029100u, static_cast<std::uint32_t>(address), static_cast<std::uint32_t>(address >> 32u), 0x2222u};
+    check(packet == storage.words.data() && std::equal(expected.begin(), expected.end(), packet), "index indirect arguments packet mismatch");
+    const auto* cleared = sceAgcDcbSetIndexIndirectArgs(&storage.buffer, nullptr, 2);
+    check(cleared == packet + 4 && cleared[0] == 0xc0029100u && cleared[1] == 0 && cleared[2] == 0 && cleared[3] == 2, "null index indirect arguments packet mismatch");
+    check(storage.buffer.cursor_up == storage.words.data() + 8 && storage.words[8] == 0xdeadbeefu, "incorrect index indirect arguments cursor advance");
+    check(sceAgcDcbSetIndexIndirectArgsGetSize() == expected.size() * sizeof(std::uint32_t), "index indirect arguments size mismatch");
+    const auto before = storage.words;
+    expectFailure([&] { sceAgcDcbSetIndexIndirectArgs(&storage.buffer, args.data() + 1, 0); });
+    expectFailure([&] { sceAgcDcbSetIndexIndirectArgs(&storage.buffer, args.data(), 0x10000u); });
+    expectFailure([&] { sceAgcDcbSetIndexIndirectArgs(nullptr, args.data(), 0); });
+    check(storage.words == before && storage.buffer.cursor_up == storage.words.data() + 8, "invalid index indirect arguments modified packet memory");
+}
+
+void testOcclusionQuerySizes() {
+    check(sceAgcDcbBeginOcclusionQueryGetSize(0) == 16, "occlusion query begin without clear size mismatch");
+    check(sceAgcDcbBeginOcclusionQueryGetSize(1) == 288, "occlusion query begin with clear size mismatch");
+    check(sceAgcDcbEndOcclusionQueryGetSize() == 16, "occlusion query end size mismatch");
+    check(sceAgcDcbBeginOcclusionQueryGetSize(0x101u) == 288, "occlusion query type is not compared by its low byte");
+    expectFailure([] { sceAgcDcbBeginOcclusionQueryGetSize(2); });
+    expectFailure([] { sceAgcDcbBeginOcclusionQueryGetSize(0x100u); });
+}
+
+void testAcquireMemEngine() {
+    Storage graphics;
+    Storage compute;
+    Storage reference;
+    auto* packet = sceAgcDcbAcquireMem(&graphics.buffer, 0, 0, 0x40u, nullptr, 0xffffffffffffffffull, 400);
+    auto* expected = sceAgcDcbAcquireMem(&reference.buffer, 1, 0, 0x40u, nullptr, 0xffffffffffffffffull, 400);
+    check(sceAgcAcquireMemSetEngine(packet, 1) == 0, "acquire engine patch failed");
+    check(std::equal(packet, packet + 8, expected) && graphics.words == reference.words, "acquire engine patch differs from the packet written with that engine");
+    auto* asyncPacket = sceAgcAcbAcquireMem(&compute.buffer, 0x40u, nullptr, 0xffffffffffffffffull, 400);
+    check(std::equal(asyncPacket, asyncPacket + 8, expected), "compute acquire did not select engine 1");
+    check(sceAgcAcquireMemSetEngine(asyncPacket, 0) == 0 && (asyncPacket[1] >> 31u) == 0 && std::equal(asyncPacket + 2, asyncPacket + 8, expected + 2), "acquire engine patch did not clear only the engine bit");
+    const auto before = graphics.words;
+    expectFailure([&] { sceAgcAcquireMemSetEngine(packet, 2); });
+    expectFailure([&] { sceAgcAcquireMemSetEngine(nullptr, 1); });
+    auto* nop = Agc::Command::WriteNop(&graphics.buffer, 8, __func__);
+    const auto withNop = graphics.words;
+    expectFailure([&] { sceAgcAcquireMemSetEngine(nop, 1); });
+    check(graphics.words == withNop && std::equal(before.begin(), before.begin() + 8, graphics.words.begin()), "invalid acquire engine patch modified packet memory");
+}
+
+void testMarkerSpans() {
+    Storage named;
+    Storage span;
+    sceAgcDcbPushMarker(&named.buffer, "frame", 0);
+    sceAgcDcbSetMarker(&named.buffer, "abc", 0);
+    sceAgcDcbPushMarker(&named.buffer, "", 0);
+    const auto* dcbPush = sceAgcDcbPushMarkerSpan(&span.buffer, "framework", 5, 0xff0000u);
+    const auto* dcbSet = sceAgcDcbSetMarkerSpan(&span.buffer, "abcdef", 3, 0);
+    const auto* dcbEmpty = sceAgcDcbPushMarkerSpan(&span.buffer, nullptr, 0, 0);
+    check(dcbPush == span.words.data() && dcbSet == dcbPush + 3 && dcbEmpty == dcbSet + 4, "DCB marker span did not return its push packet");
+    check(span.words == named.words && span.buffer.cursor_up == named.buffer.cursor_up - named.words.data() + span.words.data(), "DCB marker spans differ from the named markers with the same text");
+    Storage acb;
+    sceAgcAcbPushMarkerSpan(&acb.buffer, "framework", 5, 0);
+    sceAgcAcbSetMarkerSpan(&acb.buffer, "abcdef", 3, 0);
+    sceAgcAcbPushMarkerSpan(&acb.buffer, nullptr, 0, 0);
+    check(acb.words == span.words, "ACB and DCB marker spans differ");
+    Storage exact;
+    const auto* aligned = sceAgcDcbPushMarkerSpan(&exact.buffer, "abcdefgh", 4, 0);
+    check(aligned[0] == Agc::Command::Header(0x10, 3, 0x0bu << 2u) && std::strcmp(reinterpret_cast<const char*>(aligned + 1), "abcd") == 0 && aligned[2] == 0, "a four-byte marker span is not terminated");
+    const auto before = exact.words;
+    expectFailure([&] { sceAgcDcbPushMarkerSpan(&exact.buffer, nullptr, 1, 0); });
+    expectFailure([&] { sceAgcAcbSetMarkerSpan(&exact.buffer, nullptr, 1, 0); });
+    expectFailure([&] { sceAgcDcbSetMarkerSpan(nullptr, "frame", 5, 0); });
+    expectFailure([&] { sceAgcAcbPushMarkerSpan(&exact.buffer, "frame", 0x10000u, 0); });
+    check(exact.words == before && exact.buffer.cursor_up == exact.words.data() + 3, "invalid marker span modified packet memory");
+}
+
+void testAtomicGds() {
+    Storage storage;
+    storage.words.fill(0xdeadbeefu);
+    const auto* graphics = sceAgcDcbA_zARR5aCmkoY(&storage.buffer, 2, 0x260u, 1, 1, 0x2au, 0x1234u, 0x5678u, 0x00ad00efu, 0xcafebabeu, 0x1122334455667788ull, 0x99aabbccddeeff00ull);
+    const std::array<std::uint32_t, 11> expectedGraphics{0xc0091d00u, 0x80150060u, 0x12au, 0x1234u, 0x5678u, 0x00ad00efu, 0xcafebabeu, 0x55667788u, 0x11223344u, 0xddeeff00u, 0x99aabbccu};
+    check(graphics == storage.words.data() && std::equal(expectedGraphics.begin(), expectedGraphics.end(), graphics), "graphics atomic GDS packet mismatch");
+    const auto* compute = sceAgcAcbAtomicGds_0900(&storage.buffer, 0x200u, 1, 1, 0x2au, 0x1234u, 0x5678u, 0x00ff00ffu, 0xaabbccddu, 0x1122334455667788ull, 0x99aabbccddeeff00ull);
+    const std::array<std::uint32_t, 11> expectedCompute{0xc0091d00u, 0x00030000u, 0x12au, 0x1234u, 0x5678u, 0x00ff00ffu, 0xaabbccddu, 0x55667788u, 0x11223344u, 0xddeeff00u, 0x99aabbccu};
+    check(compute == graphics + 11 && std::equal(expectedCompute.begin(), expectedCompute.end(), compute), "compute atomic GDS packet mismatch");
+    const auto* measured = sceAgcDcbA_zARR5aCmkoY(&storage.buffer, 1, 0x222u, 0, 0, 0x15u, 0, 0, 0, 0, 0, 0);
+    check(measured[1] == 0x40050022u && measured[2] == 0x15u, "atomic GDS control word mismatch");
+    const auto* read = sceAgcAcbAtomicGds_0900(&storage.buffer, 0x60u, 1, 0, 0, 0, 0, 0, 0, 0, 0);
+    check(read[1] == 0x00140060u, "a GDS read requested completion");
+    check(storage.buffer.cursor_up == storage.words.data() + 44 && storage.words[44] == 0xdeadbeefu, "incorrect atomic GDS cursor advance");
+    check(sceAgcDcbAtomicGdsGetSize() == 44 && sceAgcAcbAtomicGdsGetSize() == 44, "atomic GDS size mismatch");
+    const auto before = storage.words;
+    expectFailure([&] { sceAgcDcbA_zARR5aCmkoY(&storage.buffer, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0); });
+    expectFailure([&] { sceAgcDcbA_zARR5aCmkoY(&storage.buffer, 0, 0x100u, 0, 0, 0, 0, 0, 0, 0, 0, 0); });
+    expectFailure([&] { sceAgcAcbAtomicGds_0900(&storage.buffer, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0); });
+    expectFailure([&] { sceAgcAcbAtomicGds_0900(&storage.buffer, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0); });
+    expectFailure([&] { sceAgcAcbAtomicGds_0900(&storage.buffer, 0, 0, 0, 0x40u, 0, 0, 0, 0, 0, 0); });
+    expectFailure([&] { sceAgcAcbAtomicGds_0900(&storage.buffer, 0, 0, 0, 0, 0, 0, 0x0000ff00u, 0, 0, 0); });
+    expectFailure([&] { sceAgcAcbAtomicGds_0900(nullptr, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0); });
+    check(storage.words == before && storage.buffer.cursor_up == storage.words.data() + 44, "invalid atomic GDS modified packet memory");
+}
+
+void testShaderInstrumentation() {
+    check(sceAgcGetShaderInstrumentation() == 0, "shader instrumentation is enabled by default");
+    check(sceAgcSetShaderInstrumentation(0) == 0, "disabling shader instrumentation failed");
+    expectFailure([] { sceAgcSetShaderInstrumentation(1); });
+    check(sceAgcGetShaderInstrumentation() == 0, "rejected shader instrumentation flags were stored");
+}
+
+void testSemaphoreMemory() {
+    constexpr int invalidAlignment = static_cast<int>(0x8a6c0002u);
+    constexpr int invalidValue = static_cast<int>(0x8a6c000bu);
+    constexpr int alreadyInitialized = static_cast<int>(0x8a6c0048u);
+    constexpr int notInitialized = static_cast<int>(0x8a6c0049u);
+    constexpr std::size_t alignment = 0x4000;
+    constexpr std::size_t bytes = 0x8000;
+    std::vector<unsigned char> storage(bytes + 2 * alignment, 0xcd);
+    const auto start = (reinterpret_cast<std::uintptr_t>(storage.data()) + alignment) & ~static_cast<std::uintptr_t>(alignment - 1);
+    auto* memory = reinterpret_cast<unsigned char*>(start);
+    void* label = nullptr;
+    check(sceAgcGetSemaphoreLabel(0, &label) == notInitialized && label == nullptr, "semaphore label returned before semaphore memory was set");
+    check(sceAgcSetAmmSemaphoreMemory(nullptr, bytes) == invalidAlignment, "null semaphore memory accepted");
+    check(sceAgcSetAmmSemaphoreMemory(memory + 0x10, bytes) == invalidAlignment, "misaligned semaphore memory accepted");
+    check(sceAgcSetAmmSemaphoreMemory(memory, 0x2000) == invalidAlignment, "semaphore memory size that is not a multiple of 16 KiB accepted");
+    check(sceAgcSetAmmSemaphoreMemory(memory, 0) == invalidAlignment, "empty semaphore memory accepted");
+    check(std::all_of(storage.begin(), storage.end(), [](unsigned char value) { return value == 0xcd; }), "rejected semaphore memory was written");
+    check(sceAgcSetAmmSemaphoreMemory(memory, bytes) == 0, "semaphore memory was rejected");
+    check(std::all_of(memory, memory + bytes, [](unsigned char value) { return value == 0; }), "semaphore memory was not cleared");
+    check(memory[-1] == 0xcd && memory[bytes] == 0xcd, "semaphore memory clear wrote outside the range");
+    check(sceAgcSetAmmSemaphoreMemory(memory, bytes) == alreadyInitialized, "semaphore memory was set twice");
+    check(sceAgcGetSemaphoreLabel(0, &label) == 0 && label == memory, "first semaphore label mismatch");
+    check(sceAgcGetSemaphoreLabel(1, &label) == 0 && label == memory + 32, "semaphore labels are not 32 bytes apart");
+    check(sceAgcGetSemaphoreLabel(bytes / 32 - 1, &label) == 0 && label == memory + bytes - 32, "last semaphore label mismatch");
+    label = nullptr;
+    check(sceAgcGetSemaphoreLabel(bytes / 32, &label) == invalidValue && label == nullptr, "semaphore label past the memory accepted");
+    check(sceAgcGetSemaphoreLabel(0xffffffffu, &label) == invalidValue && label == nullptr, "largest semaphore label index accepted");
+    check(sceAgcGetSemaphoreLabel(0, nullptr) == invalidAlignment, "null semaphore label output accepted");
 }
 
 void testContextState() {
@@ -408,6 +566,13 @@ int main(int argc, char** argv) {
         testIndexedIndirectDraws();
         testMarkers();
         testIndexBuffer();
+        testIndexIndirectArgs();
+        testOcclusionQuerySizes();
+        testAcquireMemEngine();
+        testMarkerSpans();
+        testAtomicGds();
+        testShaderInstrumentation();
+        testSemaphoreMemory();
         testContextState();
         testFlip();
         testRegisters();

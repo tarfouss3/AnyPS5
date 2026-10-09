@@ -32,6 +32,19 @@ std::uint32_t* Push(CommandBuffer* buf, const char* str, const char* function) {
     return packet;
 }
 
+std::uint32_t* PushSpan(CommandBuffer* buf, const char* text, std::uint32_t length, const char* function) {
+    Agc::Command::Require(buf != nullptr, function, "null command buffer");
+    Agc::Command::Require(text != nullptr || length == 0, function, "null marker text with a non-zero length");
+    const auto payload = (static_cast<std::uint64_t>(length) + 4u) / 4u;
+    Agc::Command::Require(payload <= 0x4000u, function, "marker text too long");
+    const auto count = static_cast<std::uint32_t>(payload) + 1u;
+    auto* packet = Agc::Command::Allocate(buf, count, function);
+    packet[0] = Agc::Command::Header(OpcodeNop, count, CustomPushMarker << 2);
+    std::memset(packet + 1, 0, static_cast<std::size_t>(payload) * sizeof(std::uint32_t));
+    if (length != 0) std::memcpy(packet + 1, text, length);
+    return packet;
+}
+
 std::uint32_t* Pop(CommandBuffer* buf, const char* function) {
     Agc::Command::Require(buf != nullptr, function, "null command buffer");
     auto* packet = Agc::Command::Allocate(buf, 2, function);
@@ -58,6 +71,18 @@ uint32_t* APS5_VABI sceAgcDcbPopMarker(CommandBuffer* buf) {
 uint32_t* APS5_VABI sceAgcDcbPushMarker(CommandBuffer* buf, const char* str, uint32_t color) {
     (void)color;
     return Agc::Marker::Push(buf, str, __func__);
+}
+
+uint32_t* APS5_VABI sceAgcDcbPushMarkerSpan(CommandBuffer* buf, const char* str, uint32_t length, uint32_t color) {
+    (void)color;
+    return Agc::Marker::PushSpan(buf, str, length, __func__);
+}
+
+uint32_t* APS5_VABI sceAgcDcbSetMarkerSpan(CommandBuffer* buf, const char* str, uint32_t length, uint32_t color) {
+    (void)color;
+    auto* packet = Agc::Marker::PushSpan(buf, str, length, __func__);
+    Agc::Marker::Pop(buf, __func__);
+    return packet;
 }
 
 }

@@ -14,6 +14,8 @@ namespace {
 constexpr std::uint32_t GE_PC_ALLOC_FULL = 0x7FFu;
 constexpr std::uint32_t LATE_ALLOC_GS_FULL = 0x007F0000u;
 constexpr std::uint32_t VGT_SHADER_STAGES_GS_W32_BIT = 0x00400000u;
+constexpr std::uint32_t SPI_SHADER_IDX_FORMAT_PAYLOAD = 2u;
+constexpr std::uint32_t GS_PRIM_PAYLOAD_BYTES = 8u;
 
 struct GsOccupancyLimits {
     std::uint32_t vertex;
@@ -105,6 +107,26 @@ int APS5_VABI sceAgcGetGsOversubscription(ShaderRegister* regs, const Shader* gs
 
     regs[0] = pcAlloc;
     regs[1] = rsrc4;
+    return 0;
+}
+
+int APS5_VABI sceAgcGetGsPrimPayload(std::uint32_t* payload, const Shader* gs) {
+    if (payload == nullptr || gs == nullptr) {
+        throw std::runtime_error(std::string(__func__) + ": payload or gs is null");
+    }
+    if (gs->num_cx_registers != 0 && gs->cx_registers == nullptr) {
+        throw std::runtime_error(std::string(__func__) + ": gs has context registers but no register list");
+    }
+    std::uint32_t bytes = 0;
+    for (std::uint32_t i = 0; i < gs->num_cx_registers; ++i) {
+        if (gs->cx_registers[i].offset == ShaderRegs::SPI_SHADER_IDX_FORMAT) {
+            if ((gs->cx_registers[i].value & 0xFu) == SPI_SHADER_IDX_FORMAT_PAYLOAD) {
+                bytes = GS_PRIM_PAYLOAD_BYTES;
+            }
+            break;
+        }
+    }
+    *payload = bytes;
     return 0;
 }
 
