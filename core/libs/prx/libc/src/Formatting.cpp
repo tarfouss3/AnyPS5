@@ -9,14 +9,15 @@
 #include <cerrno>
 #include <cstdlib>
 #include <memory>
+#include <stdexcept>
 
 #include "prx/libc/include/General.hpp"
 #include "SceTypes.hpp"
 #include "prx/libc/include/FileStream.hpp"
 #include "prx/libc/include/ApplicationHeap.hpp"
+#include "prx/libc/include/WindowsFormatting.hpp"
 
 #ifdef _WIN32
-#include "prx/libc/include/WindowsFormatting.hpp"
 #include "prx/libc/include/WindowsScanning.hpp"
 #include "prx/libc/include/WindowsWideFormatting.hpp"
 #endif
@@ -77,6 +78,7 @@ int ScanGuest(const char* buffer, const char* format, bool secure, NextPointer n
         if (conversion == 'n') {
             if (!suppress) {
                 void* target = nextPointer();
+                if (secure && target == nullptr) return EOF;
                 const auto count = input - buffer;
                 if (length == "hh") *static_cast<signed char*>(target) = static_cast<signed char>(count);
                 else if (length == "h") *static_cast<short*>(target) = static_cast<short>(count);
@@ -99,6 +101,7 @@ int ScanGuest(const char* buffer, const char* format, bool secure, NextPointer n
         void* target = nullptr;
         if (suppress) directive += '*';
         else target = nextPointer();
+        if (secure && !suppress && target == nullptr) return EOF;
         if (sized && !suppress) {
             const auto capacity = static_cast<unsigned long>(nextCapacity());
             const unsigned long limit = conversion == 'c' ? capacity : (capacity == 0 ? 0 : capacity - 1);
@@ -358,6 +361,27 @@ int APS5_VABI sscanf_s_nid_postfix(const char* buffer, const char* format, ...) 
 }
 
 #endif
+
+int APS5_VABI vsscanf_s_nid_postfix(const char* buffer, const char* format, VaList* args) {
+    if (buffer == nullptr || format == nullptr) return EOF;
+    if (args == nullptr) throw std::invalid_argument("vsscanf_s: null argument list");
+    LibcDetail::FormatArguments arguments(args);
+    return ScanGuest(buffer, format, true, [&] { return arguments.Next<void*>(); }, [&] { return arguments.Next<unsigned int>(); });
+}
+
+int APS5_VABI vsnprintf_s_nid_postfix(char* buffer, size_t size, const char* format, VaList* args) {
+    constexpr size_t RsizeMax = SIZE_MAX >> 1;
+    int result = -1;
+    if (buffer != nullptr && format != nullptr && size != 0 && size <= RsizeMax) {
+        if (args == nullptr) throw std::invalid_argument("vsnprintf_s: null argument list");
+        try {
+            result = LibcDetail::FormatWindows(buffer, size, format, args, nullptr, true);
+        } catch (const LibcDetail::RuntimeConstraintViolation&) {
+        }
+    }
+    if (result < 0 && buffer != nullptr && size != 0 && size < RsizeMax) buffer[0] = '\0';
+    return result;
+}
 
 int APS5_VABI vprintf_nid_postfix(const char* str, VaList* c) {
 #ifdef _WIN32

@@ -1,4 +1,5 @@
 #include "SceTypes.hpp"
+#include <cstdint>
 #include <cstring>
 #include <stdexcept>
 #include <cstdio>
@@ -11,6 +12,7 @@ int APS5_VABI libc_printf_nid_postfix(const char*, ...);
 int APS5_VABI sscanf_nid_postfix(const char*, const char*, ...);
 int APS5_VABI vsnprintf_nid_postfix(char*, size_t, const char*, VaList*);
 int APS5_VABI vprintf_nid_postfix(const char*, VaList*);
+int APS5_VABI vsnprintf_s_nid_postfix(char*, size_t, const char*, VaList*);
 }
 
 static void Require(bool condition) {
@@ -27,6 +29,56 @@ static int APS5_VABI FormatList(char* buffer, size_t size, const char* format, .
     Require(std::memcmp(&list, &original, sizeof(list)) == 0);
     __builtin_sysv_va_end(args);
     return result;
+}
+
+static int APS5_VABI FormatSecureList(char* buffer, size_t size, const char* format, ...) {
+    __builtin_sysv_va_list args;
+    __builtin_sysv_va_start(args, format);
+    VaList list;
+    std::memcpy(&list, args, sizeof(list));
+    const VaList original = list;
+    const int result = vsnprintf_s_nid_postfix(buffer, size, format, &list);
+    Require(std::memcmp(&list, &original, sizeof(list)) == 0);
+    __builtin_sysv_va_end(args);
+    return result;
+}
+
+static void CheckBoundedFormatting() {
+    constexpr size_t rsizeMax = SIZE_MAX >> 1;
+    const char* const nullNarrow = nullptr;
+    const char16_t* const nullWide = nullptr;
+    char buffer[16];
+    Require(FormatSecureList(buffer, sizeof(buffer), "%d-%s-%.1f", 42, "ab", 2.5) == 9 && std::strcmp(buffer, "42-ab-2.5") == 0);
+    Require(FormatSecureList(buffer, sizeof(buffer), "%ls|%5.2s|%%", u"wide", "text") == 12 && std::strcmp(buffer, "wide|   te|%") == 0);
+    std::memset(buffer, '!', sizeof(buffer));
+    Require(FormatSecureList(buffer, 5, "%s", "abcdef") == 6 && std::strcmp(buffer, "abcd") == 0 && buffer[5] == '!');
+    buffer[1] = '!';
+    Require(FormatSecureList(buffer, 1, "%x", 0xabcu) == 3 && buffer[0] == 0 && buffer[1] == '!');
+    buffer[0] = 'x';
+    Require(FormatSecureList(buffer, sizeof(buffer), "") == 0 && buffer[0] == 0);
+    buffer[0] = 'x';
+    Require(FormatSecureList(buffer, sizeof(buffer), nullptr) < 0 && buffer[0] == 0);
+    Require(FormatSecureList(nullptr, sizeof(buffer), "a") < 0);
+    buffer[0] = 'x';
+    Require(FormatSecureList(buffer, 0, "a") < 0 && buffer[0] == 'x');
+    Require(FormatSecureList(buffer, rsizeMax + 1, "a") < 0 && buffer[0] == 'x');
+    int written = -7;
+    Require(FormatSecureList(buffer, sizeof(buffer), "ab%n", &written) < 0 && buffer[0] == 0 && written == -7);
+    long long wideCount = -7;
+    buffer[0] = 'x';
+    Require(FormatSecureList(buffer, sizeof(buffer), "%lln", &wideCount) < 0 && buffer[0] == 0 && wideCount == -7);
+    buffer[0] = 'x';
+    Require(FormatSecureList(buffer, sizeof(buffer), "abc%s", nullNarrow) < 0 && buffer[0] == 0);
+    buffer[0] = 'x';
+    Require(FormatSecureList(buffer, sizeof(buffer), "%d%ls", 5, nullWide) < 0 && buffer[0] == 0);
+    Require(FormatList(buffer, sizeof(buffer), "[%s]", nullNarrow) == 8 && std::strcmp(buffer, "[(null)]") == 0);
+    bool rejected = false;
+    try {
+        FormatSecureList(buffer, sizeof(buffer), "%k", 1);
+    } catch (const std::invalid_argument&) {
+        rejected = true;
+    }
+    Require(rejected);
 }
 
 static int APS5_VABI PrintList(const char* format, ...) {
@@ -123,6 +175,7 @@ __attribute__((noinline)) static void APS5_VABI RunChecks() {
     Require(libc_printf_nid_postfix("libc_printf: %s\n", "OK") == 16);
     Require(libc_printf_nid_postfix("%d %d %d %d %d %d %d\n", 1, 22, 333, 4444, 55555, 666666, 7777777) == 35);
     Require(PrintList("vprintf: %d\n", 42) == 12);
+    CheckBoundedFormatting();
     std::puts("Formatting checks passed: 10000 iterations");
 }
 
