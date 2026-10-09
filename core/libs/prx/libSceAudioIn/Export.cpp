@@ -8,6 +8,8 @@
 #include <chrono>
 #include <cstring>
 #include <mutex>
+#include <stdexcept>
+#include <string>
 #include <thread>
 
 namespace {
@@ -86,6 +88,25 @@ std::size_t capture(SDL_AudioDeviceID device, std::uint8_t* dest, std::size_t by
     return SDL_DequeueAudio(device, dest, static_cast<Uint32>(bytes));
 }
 
+int openPort(const char* function, std::uint32_t type, std::uint32_t index, std::uint32_t len, std::uint32_t freq, std::uint32_t param, bool highQuality) {
+    if (type != 0 && type != 1) return AUDIO_IN_ERROR_INVALID_TYPE;
+    if (index != 0) return AUDIO_IN_ERROR_INVALID_PARAM;
+    if (len != 128 && (highQuality || len != 256)) return AUDIO_IN_ERROR_INVALID_SIZE;
+    if (freq != 48000 && (highQuality || freq != 16000)) return AUDIO_IN_ERROR_INVALID_FREQ;
+    if (param == 0x10) throw std::runtime_error(std::string(function) + ": format 0x10 is unknown");
+    Format format{};
+    if (!formatOf(param, format)) return AUDIO_IN_ERROR_INVALID_PARAM;
+    std::lock_guard lock(g_mutex);
+    for (std::size_t i = 0; i < g_ports.size(); ++i) {
+        if (g_ports[i].used) continue;
+        const auto frameBytes = static_cast<std::uint32_t>(SDL_AUDIO_BITSIZE(format.format) / 8 * format.channels);
+        const auto grain = std::chrono::duration_cast<Clock::duration>(std::chrono::microseconds(1000000ull * len / freq));
+        g_ports[i] = {true, false, len, frameBytes, openDevice(freq, len, format), grain, {}};
+        return static_cast<int>(i + 1);
+    }
+    return AUDIO_IN_ERROR_PORT_FULL;
+}
+
 }
 
 extern "C" {
@@ -132,25 +153,7 @@ int APS5_VABI sceAudioInInput(int handle, void* dest) {
 
 int APS5_VABI sceAudioInOpen(int user_id, uint32_t type, uint32_t index, uint32_t len, uint32_t freq, uint32_t param) {
     (void)user_id;
-    if (type != 0 && type != 1) return AUDIO_IN_ERROR_INVALID_TYPE;
-    if (index != 0) return AUDIO_IN_ERROR_INVALID_PARAM;
-    if (len != 128 && len != 256) return AUDIO_IN_ERROR_INVALID_SIZE;
-    if (freq != 48000 && freq != 16000) return AUDIO_IN_ERROR_INVALID_FREQ;
-    if (param == 0x10) {
-        NotImplemented_nid_no_patch(__func__);
-        return 0;
-    }
-    Format format{};
-    if (!formatOf(param, format)) return AUDIO_IN_ERROR_INVALID_PARAM;
-    std::lock_guard lock(g_mutex);
-    for (std::size_t i = 0; i < g_ports.size(); ++i) {
-        if (g_ports[i].used) continue;
-        const auto frameBytes = static_cast<std::uint32_t>(SDL_AUDIO_BITSIZE(format.format) / 8 * format.channels);
-        const auto grain = std::chrono::duration_cast<Clock::duration>(std::chrono::microseconds(1000000ull * len / freq));
-        g_ports[i] = {true, false, len, frameBytes, openDevice(freq, len, format), grain, {}};
-        return static_cast<int>(i + 1);
-    }
-    return AUDIO_IN_ERROR_PORT_FULL;
+    return openPort(__func__, type, index, len, freq, param, false);
 }
 
 int32_t APS5_VABI sceAudioInClose(int32_t handle) {
@@ -164,14 +167,8 @@ int32_t APS5_VABI sceAudioInClose(int32_t handle) {
 }
 
 int32_t APS5_VABI sceAudioInHqOpen(int32_t user_id, uint32_t type, uint32_t index, uint32_t len, uint32_t freq, uint32_t param) {
- (void)user_id;
- (void)type;
- (void)index;
- (void)len;
- (void)freq;
- (void)param;
- NotImplemented_nid_no_patch(__func__);
- return 0;
+    (void)user_id;
+    return openPort(__func__, type, index, len, freq, param, true);
 }
 
 int32_t APS5_VABI sceAudioInAsyncOpen(int32_t user_id, uint32_t type, uint32_t index, uint32_t len, uint32_t freq, uint32_t param) {
