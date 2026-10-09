@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cstring>
 #include <stdexcept>
+#include <string>
 #include <chrono>
 #include <thread>
 
@@ -144,11 +145,9 @@ int APS5_VABI scePadOpenExt(int userId, int type, int index, const void* param) 
  if (!ValidPort(userId, type, index) || param == nullptr) {
   return PAD_ERROR_INVALID_ARG;
  }
- if (type != PAD_PORT_TYPE_SPECIAL) NotImplemented_nid_no_patch(__func__);
- return PAD_ERROR_DEVICE_NOT_CONNECTED;
+ if (type == PAD_PORT_TYPE_SPECIAL) return PAD_ERROR_DEVICE_NOT_CONNECTED;
+ return scePadOpen_nid_postfix(userId, type, index, nullptr);
 }
-
-int APS5_VABI scePadReadExt() { NotImplemented_nid_no_patch(__func__); return 0; }
 
 int APS5_VABI scePadGetFeatureReport() { NotImplemented_nid_no_patch(__func__); return 0; }
 
@@ -175,6 +174,10 @@ int APS5_VABI scePadReadState(int handle, PadData* data) {
  return 0;
 }
 
+int APS5_VABI scePadReadExt(int handle, PadData* data, int num) {
+ return scePadRead_nid_postfix(handle, data, num);
+}
+
 int APS5_VABI scePadResetLightBar(int handle) {
  if (handle != PAD_HANDLE) return PAD_ERROR_INVALID_HANDLE;
  Pad::SetLightBar(false, 0, 0, 0);
@@ -189,7 +192,7 @@ int APS5_VABI scePadResetOrientation(int handle) {
 
 int APS5_VABI scePadSetAngularVelocityDeadbandState(int handle, bool enable) {
  if (handle != PAD_HANDLE) return PAD_ERROR_INVALID_HANDLE;
- if (enable) NotImplemented_nid_no_patch(__func__);
+ if (enable) throw std::runtime_error(std::string(__func__) + ": the angular velocity deadband threshold is unknown");
  return PAD_OK;
 }
 
@@ -268,9 +271,10 @@ int APS5_VABI scePadIsRemoteController(int handle, bool* remote) {
 }
 
 
-int APS5_VABI scePadSetAngularVelocityBiasCorrectionState() {
- NotImplemented_nid_no_patch(__func__);
- return 0;
+int APS5_VABI scePadSetAngularVelocityBiasCorrectionState(int handle, bool enable) {
+ if (handle != PAD_HANDLE) return PAD_ERROR_INVALID_HANDLE;
+ if (!enable) throw std::runtime_error(std::string(__func__) + ": uncorrected angular velocity is not available");
+ return PAD_OK;
 }
 
 }

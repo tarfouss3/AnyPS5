@@ -34,19 +34,21 @@ std::int32_t APS5_VABI sceBluetoothHidUnregisterDevice(std::uint16_t vendorId, s
     return 0;
 }
 
-int APS5_VABI sceBluetoothHidGetDeviceName() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceBluetoothHidGetDeviceName(std::uint64_t handle, void* name) {
+    (void)name;
+    throw std::runtime_error(std::string(__func__) + ": no device is connected, so handle " + std::to_string(handle) + " cannot exist");
 }
 
-int APS5_VABI sceBluetoothHidGetInputReport() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceBluetoothHidGetInputReport(void* report, std::uint32_t reportId) {
+    (void)report;
+    throw std::runtime_error(std::string(__func__) + ": no device is connected to read report " + std::to_string(reportId) + " from");
 }
 
-int APS5_VABI sceBluetoothHidSetOutputReport() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::int32_t APS5_VABI sceBluetoothHidSetOutputReport(std::uint64_t handle, std::uint32_t reportId, const void* data, std::uint64_t length) {
+    (void)reportId;
+    (void)data;
+    (void)length;
+    throw std::runtime_error(std::string(__func__) + ": no device is connected, so handle " + std::to_string(handle) + " cannot exist");
 }
 
 }

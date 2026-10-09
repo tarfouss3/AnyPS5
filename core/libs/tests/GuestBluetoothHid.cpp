@@ -11,7 +11,9 @@ std::int32_t APS5_VABI sceBluetoothHidRegisterCallback(void* callback, std::int3
 std::int32_t APS5_VABI sceBluetoothHidUnregisterCallback();
 std::int32_t APS5_VABI sceBluetoothHidRegisterDevice(std::uint16_t vendorId, std::uint16_t productId);
 std::int32_t APS5_VABI sceBluetoothHidUnregisterDevice(std::uint16_t vendorId, std::uint16_t productId);
-int APS5_VABI sceBluetoothHidGetInputReport();
+std::int32_t APS5_VABI sceBluetoothHidGetDeviceName(std::uint64_t handle, void* name);
+std::int32_t APS5_VABI sceBluetoothHidGetInputReport(void* report, std::uint32_t reportId);
+std::int32_t APS5_VABI sceBluetoothHidSetOutputReport(std::uint64_t handle, std::uint32_t reportId, const void* data, std::uint64_t length);
 }
 
 namespace {
@@ -29,6 +31,16 @@ void Require(bool condition, const char* message) {
     }
 }
 
+template <typename TCall>
+bool Throws(TCall call) {
+    try {
+        call();
+    } catch (const std::runtime_error&) {
+        return true;
+    }
+    return false;
+}
+
 }
 
 int main() {
@@ -44,13 +56,12 @@ int main() {
         threw = true;
     }
     Require(threw, "a null callback was accepted");
-    threw = false;
-    try {
-        sceBluetoothHidGetInputReport();
-    } catch (const std::runtime_error&) {
-        threw = true;
-    }
-    Require(threw, "an input report without a device did not throw");
+    std::uint8_t report[64]{};
+    char name[64]{};
+    Require(Throws([&] { sceBluetoothHidGetInputReport(report, 1); }), "an input report without a device did not throw");
+    Require(Throws([&] { sceBluetoothHidGetDeviceName(0, name); }), "a device name without a device did not throw");
+    Require(Throws([&] { sceBluetoothHidSetOutputReport(0, 1, report, sizeof(report)); }), "an output report without a device did not throw");
+    Require(name[0] == 0 && report[0] == 0, "a call without a device wrote output");
     Require(sceBluetoothHidUnregisterDevice(0x44f, 0x1000) == 0, "device unregistration failed");
     Require(sceBluetoothHidUnregisterCallback() == 0, "callback unregistration failed");
     std::puts("BluetoothHid tests passed");
