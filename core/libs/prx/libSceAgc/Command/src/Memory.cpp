@@ -39,6 +39,19 @@ std::uint32_t* WriteCopyData(CommandBuffer* buffer, bool compute, std::uint8_t d
     return Emit(buffer, 0x40u, {control, static_cast<std::uint32_t>(srcAddressOrImmediate), static_cast<std::uint32_t>(srcAddressOrImmediate >> 32u), static_cast<std::uint32_t>(dstAddress), static_cast<std::uint32_t>(dstAddress >> 32u)}, function);
 }
 
+std::uint32_t* WriteAtomicGds(CommandBuffer* buffer, std::uint32_t engine, std::uint32_t operation, std::uint32_t completion, std::uint32_t dataMode, std::uint32_t autoIncrementBytes, std::uint16_t base, std::uint16_t size, std::uint32_t offsets, std::uint32_t destination, std::uint64_t source0, std::uint64_t source1, const char* function) {
+    CheckBits(engine, 3, function);
+    CheckBits(operation, 0x2ffu, function);
+    CheckBits(completion, 1, function);
+    CheckBits(dataMode, 1, function);
+    CheckBits(autoIncrementBytes, 0x3fu, function);
+    CheckBits(offsets, 0x00ff00ffu, function);
+    const auto read = operation & 0x20u;
+    const auto complete = completion == 1 && read == 0 ? 1u : 0u;
+    const auto control = (operation & 0xffu) | ((operation & 0x200u) << 7u) | (complete << 17u) | (read << 13u) | ((operation & 0x40u) << 14u) | (engine << 30u);
+    return Emit(buffer, 0x1du, {control, autoIncrementBytes | (dataMode << 8u), base, size, offsets, destination, static_cast<std::uint32_t>(source0), static_cast<std::uint32_t>(source0 >> 32u), static_cast<std::uint32_t>(source1), static_cast<std::uint32_t>(source1 >> 32u)}, function);
+}
+
 std::uint32_t* WriteAtomicMem(CommandBuffer* buffer, std::uint8_t atomicOp, std::uint8_t command, std::uint8_t cachePolicy, const volatile void* address, std::uint64_t srcData, std::uint64_t compareData, std::uint16_t loopInterval, const char* function) {
     CheckBits(atomicOp, 0x7fu, function);
     CheckBits(command, 0xfu, function);

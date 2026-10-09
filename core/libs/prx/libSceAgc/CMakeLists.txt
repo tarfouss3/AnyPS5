@@ -29,9 +29,11 @@ add_library(libSceAgc SHARED EXCLUDE_FROM_ALL
         ${CMAKE_CURRENT_SOURCE_DIR}/DcbState/src/Predication.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/DcbState/src/Registers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/DcbState/src/Workload.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/Misc/src/Instrumentation.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/Misc/src/PacketInfo.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/Misc/src/Platform.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/Misc/src/RegisterDefaults.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/Misc/src/Semaphore.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/Misc/src/ShaderFusion.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/Misc/src/Suspend.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/Patch/src/CondExec.cpp

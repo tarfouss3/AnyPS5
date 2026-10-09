@@ -11,10 +11,8 @@
 
 extern "C" {
 
-// unknown signature
-void* APS5_VABI sceAgcAcbAtomicGds_0900(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return nullptr;
+std::uint32_t* APS5_VABI sceAgcAcbAtomicGds_0900(CommandBuffer* buf, std::uint32_t operation, std::uint32_t completion, std::uint32_t dataMode, std::uint32_t autoIncrementBytes, std::uint16_t base, std::uint16_t size, std::uint32_t offsets, std::uint32_t destination, std::uint64_t source0, std::uint64_t source1) {
+    return Agc::Command::WriteAtomicGds(buf, 0, operation, completion, dataMode, autoIncrementBytes, base, size, offsets, destination, source0, source1, __func__);
 }
 
 std::uint32_t* APS5_VABI sceAgcAcbJump(CommandBuffer* buf, std::uint8_t cachePolicy, const std::uint32_t* target, std::uint32_t sizeInDwords) {
@@ -75,6 +73,18 @@ uint32_t* APS5_VABI sceAgcAcbPopMarker(CommandBuffer* buf) {
 uint32_t* APS5_VABI sceAgcAcbSetMarker(CommandBuffer* buf, const char* str, uint32_t color) {
     (void)color;
     auto* packet = Agc::Marker::Push(buf, str, __func__);
+    Agc::Marker::Pop(buf, __func__);
+    return packet;
+}
+
+uint32_t* APS5_VABI sceAgcAcbPushMarkerSpan(CommandBuffer* buf, const char* str, uint32_t length, uint32_t color) {
+    (void)color;
+    return Agc::Marker::PushSpan(buf, str, length, __func__);
+}
+
+uint32_t* APS5_VABI sceAgcAcbSetMarkerSpan(CommandBuffer* buf, const char* str, uint32_t length, uint32_t color) {
+    (void)color;
+    auto* packet = Agc::Marker::PushSpan(buf, str, length, __func__);
     Agc::Marker::Pop(buf, __func__);
     return packet;
 }

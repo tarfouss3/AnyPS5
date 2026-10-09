@@ -12,6 +12,7 @@
 #include <stdexcept>
 
 extern "C" int APS5_VABI sceAgcGetGsOversubscription(ShaderRegister* regs, const Shader* gs, std::uint32_t budget, float factor);
+extern "C" int APS5_VABI sceAgcGetGsPrimPayload(std::uint32_t* payload, const Shader* gs);
 
 namespace {
 
@@ -125,6 +126,32 @@ void testRejections() {
 
 }
 
+void testPrimPayload() {
+    std::array<ShaderRegister, 3> cx{{{0x100u, 0xffffffffu}, {ShaderRegs::SPI_SHADER_IDX_FORMAT, 0x12u}, {ShaderRegs::SPI_SHADER_IDX_FORMAT, 0x02u}}};
+    Shader gs{};
+    gs.cx_registers = cx.data();
+    gs.num_cx_registers = static_cast<std::uint8_t>(cx.size());
+    std::uint32_t payload = 0xffffffffu;
+    check(sceAgcGetGsPrimPayload(&payload, &gs) == 0 && payload == 8, "index format 2 did not report an 8-byte primitive payload");
+    cx[1].value = 0x13u;
+    payload = 0xffffffffu;
+    check(sceAgcGetGsPrimPayload(&payload, &gs) == 0 && payload == 0, "only the first index format register is read");
+    cx[1].value = 0x02u;
+    gs.num_cx_registers = 1;
+    payload = 0xffffffffu;
+    check(sceAgcGetGsPrimPayload(&payload, &gs) == 0 && payload == 0, "a register past the context register count was read");
+    gs.cx_registers = nullptr;
+    gs.num_cx_registers = 0;
+    payload = 0xffffffffu;
+    check(sceAgcGetGsPrimPayload(&payload, &gs) == 0 && payload == 0, "a shader without context registers reported a payload");
+    gs.num_cx_registers = 2;
+    payload = 0xffffffffu;
+    expectFailure([&] { sceAgcGetGsPrimPayload(&payload, &gs); });
+    expectFailure([&] { sceAgcGetGsPrimPayload(nullptr, &gs); });
+    expectFailure([&] { sceAgcGetGsPrimPayload(&payload, nullptr); });
+    check(payload == 0xffffffffu, "a rejected query wrote its output");
+}
+
 int main() {
     try {
         testBudgetLimits();
@@ -132,6 +159,7 @@ int main() {
         testExportBound();
         testRegisterFields();
         testRejections();
+        testPrimPayload();
         LibcRunShutdown_nid_postfix();
         std::puts("AGC GS oversubscription tests passed");
         return 0;
